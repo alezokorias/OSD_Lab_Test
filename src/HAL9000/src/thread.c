@@ -12,7 +12,8 @@
 
 #define TID_INCREMENT               4
 
-#define THREAD_TIME_SLICE           1
+#define ODD_THREAD_TIME_SLICE       3
+#define EVEN_THREAD_TIME_SLICE      7
 
 extern void ThreadStart();
 
@@ -410,6 +411,13 @@ ThreadCreateEx(
     }
     else
     {
+        pThread->Id = pThread->Prev_TID + 5 * pThread->N + 5;
+
+        LOG("Thread [tid=0x%X] is being created\n", pThread->Id);
+
+        pThread->Prev_TID = pThread->Id;
+        pThread->N = pThread->N++;
+
         ThreadUnblock(pThread);
     }
 
@@ -440,7 +448,12 @@ ThreadTick(
     }
     pThread->TickCountCompleted++;
 
-    if (++pCpu->ThreadData.RunningThreadTicks >= THREAD_TIME_SLICE)
+    if (pThread->Id % 2 == 0 && ++pCpu->ThreadData.RunningThreadTicks >= EVEN_THREAD_TIME_SLICE)
+    {
+        LOG_TRACE_THREAD("Will yield on return\n");
+        pCpu->ThreadData.YieldOnInterruptReturn = TRUE;
+    }
+    else if (pThread->Id % 2 != 0 && ++pCpu->ThreadData.RunningThreadTicks >= ODD_THREAD_TIME_SLICE)
     {
         LOG_TRACE_THREAD("Will yield on return\n");
         pCpu->ThreadData.YieldOnInterruptReturn = TRUE;
@@ -790,6 +803,8 @@ _ThreadInit(
 
         strcpy(pThread->Name, Name);
 
+        pThread->Prev_TID =0;
+        pThread->N = 0;
         pThread->Id = _ThreadSystemGetNextTid();
         pThread->State = ThreadStateBlocked;
         pThread->Priority = Priority;
@@ -950,7 +965,7 @@ _ThreadSetupMainThreadUserStack(
     ASSERT(ResultingStack != NULL);
     ASSERT(Process != NULL);
 
-    *ResultingStack = InitialStack;
+    *ResultingStack = (PVOID)PtrDiff(InitialStack, SHADOW_STACK_SIZE + sizeof(PVOID));
 
     return STATUS_SUCCESS;
 }
@@ -1186,6 +1201,8 @@ _ThreadDestroy(
 
     ASSERT(NULL != pThread);
     ASSERT(NULL == Context);
+
+    LOG("Thread [tid=0x%X] is being destroyed\n", pThread->Id);
 
     LockAcquire(&m_threadSystemData.AllThreadsLock, &oldState);
     RemoveEntryList(&pThread->AllList);

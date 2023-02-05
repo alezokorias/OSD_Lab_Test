@@ -169,4 +169,24 @@ SyscallValidateInterface(
     return STATUS_SUCCESS;
 }
 
-// STUDENT TODO: implement the rest of the syscalls
+STATUS
+SyscallFileWrite(
+    IN  UM_HANDLE                   FileHandle,
+    IN_READS_BYTES(BytesToWrite)
+    PVOID                       Buffer,
+    IN  QWORD                       BytesToWrite,
+    OUT QWORD* BytesWritten
+)
+{
+    BytesWritten = ExAllocatePoolWithTag(PoolAllocateZeroMemory, (DWORD)BytesToWrite, HEAP_THREAD_TAG, 0);
+    if (MmuIsBufferValid(Buffer, BytesToWrite, PAGE_RIGHTS_WRITE, NULL) != STATUS_SUCCESS) {
+        return STATUS_MEMORY_CANNOT_BE_MAPPED;
+    }
+
+    if (FileHandle != UM_FILE_HANDLE_STDOUT)
+    {
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    return STATUS_SUCCESS;
+}
