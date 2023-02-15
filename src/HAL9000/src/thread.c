@@ -28,6 +28,7 @@ extern FUNC_ThreadSwitch            ThreadSwitch;
 
 typedef struct _THREAD_SYSTEM_DATA
 {
+    volatile DWORD      N;
     LOCK                AllThreadsLock;
 
     _Guarded_by_(AllThreadsLock)
@@ -37,6 +38,11 @@ typedef struct _THREAD_SYSTEM_DATA
 
     _Guarded_by_(ReadyThreadsLock)
     LIST_ENTRY          ReadyThreadsList;
+
+    LOCK                OrderedThreadsLock;
+
+    _Guarded_by_(OrderedThreadsLock)
+    LIST_ENTRY          OrderedThreadsList;
 } THREAD_SYSTEM_DATA, *PTHREAD_SYSTEM_DATA;
 
 static THREAD_SYSTEM_DATA m_threadSystemData;
@@ -50,7 +56,9 @@ _ThreadSystemGetNextTid(
 {
     static volatile TID __currentTid = 0;
 
-    return _InterlockedExchangeAdd64(&__currentTid, TID_INCREMENT);
+    DWORD increment = 4 * m_threadSystemData.N + 5;
+    _InterlockedIncrement(&m_threadSystemData.N);
+    return _InterlockedExchangeAdd64(&__currentTid, increment);
 }
 
 static
@@ -146,6 +154,9 @@ ThreadSystemPreinit(
 
     InitializeListHead(&m_threadSystemData.ReadyThreadsList);
     LockInit(&m_threadSystemData.ReadyThreadsLock);
+
+    InitializeListHead(&m_threadSystemData.OrderedThreadsList);
+    LockInit(&m_threadSystemData.OrderedThreadsLock);
 }
 
 STATUS
@@ -411,12 +422,7 @@ ThreadCreateEx(
     }
     else
     {
-        pThread->Id = pThread->Prev_TID + 5 * pThread->N + 5;
-
-        LOG("Thread [tid=0x%X] is being created\n", pThread->Id);
-
-        pThread->Prev_TID = pThread->Id;
-        pThread->N = pThread->N++;
+        pThread->Id = _ThreadSystemGetNextTid();
 
         ThreadUnblock(pThread);
     }
@@ -448,13 +454,7 @@ ThreadTick(
     }
     pThread->TickCountCompleted++;
 
-    if (pThread->Id % 2 == 0 && ++pCpu->ThreadData.RunningThreadTicks >= EVEN_THREAD_TIME_SLICE)
-    {
-        LOG_TRACE_THREAD("Will yield on return\n");
-        pCpu->ThreadData.YieldOnInterruptReturn = TRUE;
-    }
-    else if (pThread->Id % 2 != 0 && ++pCpu->ThreadData.RunningThreadTicks >= ODD_THREAD_TIME_SLICE)
-    {
+    if (++pCpu->ThreadData.RunningThreadTicks >= pThread->ThreadTimeSlices) {
         LOG_TRACE_THREAD("Will yield on return\n");
         pCpu->ThreadData.YieldOnInterruptReturn = TRUE;
     }
@@ -563,6 +563,17 @@ ThreadExit(
     LOG_FUNC_START_THREAD;
 
     pThread = GetCurrentThread();
+
+    RemoveEntryList(&pThread->ChildListElement);
+
+    LIST_ITERATOR it;
+    ListIteratorInit(&pThread->ChildrenList, &it);
+
+    PLIST_ENTRY pEntry;
+    while ((pEntry = ListIteratorNext(&it)) != NULL) {
+        PTHREAD ppEntry = CONTAINING_RECORD(pEntry, THREAD, ChildListElement);
+        InsertTailList(&pThread->ParentThread->ChildrenList, &ppEntry->ChildListElement);
+    }
 
     CpuIntrDisable();
 
@@ -803,17 +814,29 @@ _ThreadInit(
 
         strcpy(pThread->Name, Name);
 
-        pThread->Prev_TID =0;
-        pThread->N = 0;
         pThread->Id = _ThreadSystemGetNextTid();
+        LOG("Thread [tid=0x%X] is being created\n", pThread->Id);
+
+        pThread->ThreadTimeSlices = (pThread->Id % 2) ? ODD_THREAD_TIME_SLICE : EVEN_THREAD_TIME_SLICE;
+
         pThread->State = ThreadStateBlocked;
         pThread->Priority = Priority;
+        InitializeListHead(&pThread->ChildrenList);
+
+        PTHREAD currentThread = GetCurrentThread();
+        pThread->ParentThread = currentThread ? currentThread : NULL;
+
+        if (currentThread) {
+            InsertTailList(&currentThread->ChildrenList, &currentThread->ChildListElement);
+        }
 
         LockInit(&pThread->BlockLock);
 
         LockAcquire(&m_threadSystemData.AllThreadsLock, &oldIntrState);
         InsertTailList(&m_threadSystemData.AllThreadsList, &pThread->AllList);
         LockRelease(&m_threadSystemData.AllThreadsLock, oldIntrState);
+
+        //InsertOrderedList()
     }
     __finally
     {
@@ -1255,4 +1278,30 @@ _ThreadKernelFunction(
 
     ThreadExit(exitStatus);
     NOT_REACHED;
+}
+
+PTHREAD 
+_ThreadReferenceByTid(
+    TID
+    ThreadId
+) 
+{
+    LIST_ENTRY *pListEntry;
+    INTR_STATE oldState;
+    PTHREAD thread;
+	LockAcquire(&m_threadSystemData.AllThreadsLock, &oldState);
+	pListEntry = m_threadSystemData.AllThreadsList.Flink;
+    while (pListEntry != &m_threadSystemData.AllThreadsList)
+    {
+		thread = CONTAINING_RECORD(pListEntry, THREAD, AllList);
+		if (thread->Id == ThreadId)
+		{
+			_ThreadReference(thread);
+			LockRelease(&m_threadSystemData.AllThreadsLock, oldState);
+			return thread;
+		}
+        pListEntry = pListEntry->Flink;
+	}
+	LockRelease(&m_threadSystemData.AllThreadsLock, oldState);
+	return NULL;
 }

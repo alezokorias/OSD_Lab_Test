@@ -37,10 +37,8 @@ typedef struct _THREAD
 
     struct _THREAD          *Self;
 
-    DWORD                   N;
-    TID                     Prev_TID;
     TID                     Id;
-    DWORD                   ThreadTimeSlices;
+    QWORD                   ThreadTimeSlices;
     char*                   Name;
 
     // Currently the thread priority is not used for anything
@@ -65,6 +63,13 @@ typedef struct _THREAD
 
     // List of the threads in the same process
     LIST_ENTRY              ProcessList;
+
+    LIST_ENTRY              OrderedThreads;
+
+    LIST_ENTRY              ChildrenList;
+    LIST_ENTRY              ChildListElement;
+
+    PTHREAD                 ParentThread;
 
     // Incremented on each clock tick for the running thread
     QWORD                   TickCountCompleted;
@@ -92,6 +97,9 @@ typedef struct _THREAD
     // MUST be non-NULL for all threads which belong to user-mode processes
     PVOID                   UserStack;
 
+    QWORD                   StartTime;
+
+    QWORD                   EndTime;
     struct _PROCESS*        Process;
 } THREAD, *PTHREAD;
 
@@ -285,3 +293,10 @@ void
 ThreadSetPriority(
     IN      THREAD_PRIORITY     NewPriority
     );
+
+
+PTHREAD
+_ThreadReferenceByTid(
+    TID
+    ThreadId
+);

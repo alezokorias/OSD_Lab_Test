@@ -6,6 +6,8 @@
 #include "iomu.h"
 #include "test_common.h"
 #include "strutils.h"
+#include "thread_internal.h"
+#include "strutils.h"
 
 void
 CmdPrintVolumeInformation(
@@ -152,4 +154,30 @@ void
     ASSERT(NumberOfParameters == 0);
 
     TestRunAllPerformance();
+}
+
+void
+(__cdecl CmdPrintChildren)(
+    IN          QWORD      NumberOfParameters,
+    IN          char*      Param
+    )
+{
+    ASSERT(NumberOfParameters == 1);
+
+    DWORD aux;
+    atoi(&aux, Param, 10, FALSE);
+    TID Tid = (TID)aux;
+    
+    LOG("Displying children for Thread with TID=%6x%c", Tid);
+
+    PTHREAD pThread = _ThreadReferenceByTid(Tid);
+
+    LIST_ITERATOR it_Children;
+    ListIteratorInit(&pThread->ChildrenList, &it_Children);
+
+    PLIST_ENTRY child;
+    while ((child = ListIteratorNext(&it_Children)) != NULL) {
+        PTHREAD chThread = CONTAINING_RECORD(child, THREAD, ChildListElement);
+        LOG("%6x%c", chThread->Id);
+    }
 }
