@@ -299,3 +299,8 @@ PTHREAD
 _ThreadReferenceByTid(
     TID     ThreadId
 );
+
+DWORD
+_ListLength(
+    LIST_ENTRY  List
+);

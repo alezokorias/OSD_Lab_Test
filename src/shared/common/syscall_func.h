@@ -306,3 +306,23 @@ SyscallFileWrite(
     IN  QWORD                       BytesToWrite,
     OUT QWORD*                      BytesWritten
     );
+
+STATUS
+SyscallThreadGetHandle(
+    OUT UM_HANDLE* ThreadHandle
+);
+
+STATUS
+SyscallThreadGetInformation(
+    IN UM_HANDLE      ThreadHandle,
+    OUT DWORD* ChildrenCount,
+    OUT DWORD* TimeSlices,
+    OUT DWORD* ThreadId,
+    OUT UM_HANDLE* ParentHandle
+);
+
+STATUS
+SyscallThreadGetChildren(
+    IN UM_HANDLE      ThreadHandle,
+    OUT UM_HANDLE* ChildrenHandles
+);

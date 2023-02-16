@@ -27,6 +27,9 @@ typedef enum _SYSCALL_ID
     SyscallIdFileClose,
     SyscallIdFileRead,
     SyscallIdFileWrite,
+    SyscallIdThreadGetHandle,
+    SyscallIdThreadGetInformation,
+    SyscallIdThreadGetChildren,
 
     SyscallIdReserved = SyscallIdFileWrite + 1
 } SYSCALL_ID;

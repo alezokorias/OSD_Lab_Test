@@ -197,3 +197,31 @@ SyscallFileWrite(
     return SyscallEntry(SyscallIdFileWrite, FileHandle, Buffer, BytesToWrite, BytesWritten);
 }
 
+STATUS
+SyscallThreadGetHandle(
+    OUT UM_HANDLE* ThreadHandle
+)
+{
+    return SyscallEntry(SyscallIdThreadGetHandle, ThreadHandle);
+}
+
+STATUS
+SyscallThreadGetInformation(
+    IN  UM_HANDLE       ThreadHandle,
+    OUT DWORD*  ChildrenCount,
+    OUT DWORD* TimeSlices,
+    OUT DWORD* ThreadId,
+    OUT UM_HANDLE* ParentHandle
+)
+{
+    return SyscallEntry(SyscallIdThreadGetInformation, ThreadHandle, ChildrenCount, TimeSlices, ThreadId, ParentHandle);
+}
+
+STATUS
+SyscallThreadGetChildren(
+    IN UM_HANDLE      ThreadHandle,
+    OUT UM_HANDLE* ChildrenHandles
+)
+{
+    return SyscallEntry(SyscallIdThreadGetChildren, ThreadHandle, ChildrenHandles);
+}

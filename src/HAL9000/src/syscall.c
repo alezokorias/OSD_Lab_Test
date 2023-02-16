@@ -8,6 +8,7 @@
 #include "process_internal.h"
 #include "dmp_cpu.h"
 #include "thread_internal.h"
+#include "vmm.h"
 
 extern void SyscallEntry();
 
@@ -77,6 +78,18 @@ SyscallHandler(
             break;
         case SyscallIdFileWrite:
             status = SyscallFileWrite((UM_HANDLE)pSyscallParameters[0], (PVOID)pSyscallParameters[1], (QWORD)pSyscallParameters[2], (QWORD*)pSyscallParameters[3]);
+            break;
+        case SyscallIdThreadCreate:
+            status = SyscallThreadCreate((PFUNC_ThreadStart)pSyscallParameters[0], (PVOID)pSyscallParameters[1], (UM_HANDLE*)pSyscallParameters[2]);
+            break;
+        case SyscallIdThreadGetHandle:
+            status = SyscallThreadGetHandle((UM_HANDLE*)*pSyscallParameters);
+            break;
+        case SyscallIdThreadGetInformation:
+            status = SyscallThreadGetInformation((UM_HANDLE)pSyscallParameters[0], (DWORD*)pSyscallParameters[1], (DWORD*)pSyscallParameters[2], (DWORD*)pSyscallParameters[3], (UM_HANDLE*)pSyscallParameters[4]);
+            break;
+        case SyscallIdThreadGetChildren:
+            status = SyscallThreadGetChildren((UM_HANDLE)pSyscallParameters[0], (UM_HANDLE*)pSyscallParameters[1]);
             break;
         default:
             LOG_ERROR("Unimplemented syscall called from User-space!\n");
@@ -228,4 +241,107 @@ SyscallFileWrite(
     }
 
     return status;
+}
+
+STATUS
+SyscallVirtualAlloc(
+    IN_OPT      PVOID                   BaseAddress,
+    IN          QWORD                   Size,
+    IN          VMM_ALLOC_TYPE          AllocType,
+    IN          PAGE_RIGHTS             PageRights,
+    IN_OPT      UM_HANDLE               FileHandle,
+    IN_OPT      QWORD                   Key,
+    OUT         PVOID* AllocatedAddress
+)
+{
+    if (BaseAddress != NULL)
+        return STATUS_INVALID_PARAMETER1;
+
+    if (FileHandle != UM_INVALID_HANDLE_VALUE)
+        return STATUS_INVALID_PARAMETER5;
+
+    if (Key != 0)
+        return STATUS_INVALID_PARAMETER6;
+
+    PPROCESS currentProcess = GetCurrentProcess();
+
+    *AllocatedAddress = VmmAllocRegionEx(BaseAddress, Size, AllocType, PageRights, FALSE, NULL, currentProcess->VaSpace, currentProcess->PagingData, NULL);
+
+    return STATUS_SUCCESS;
+}
+
+STATUS
+SyscallThreadCreate(
+    IN      PFUNC_ThreadStart       StartFunction,
+    IN_OPT  PVOID                   Context,
+    OUT     UM_HANDLE* ThreadHandle
+)
+{
+    if (NULL == StartFunction)
+    {
+        return STATUS_INVALID_PARAMETER1;
+    }
+
+    STATUS status;
+    PTHREAD thread;
+    status = ThreadCreate("Thread", ThreadPriorityDefault, StartFunction, Context, &thread);
+
+    ThreadHandle = (UM_HANDLE*)thread;
+
+    return status;
+}
+
+STATUS
+SyscallThreadGetHandle(
+    OUT     UM_HANDLE* ThreadHandle
+)
+{
+    PTHREAD pThread = GetCurrentThread();
+    ThreadHandle = (UM_HANDLE*)pThread;
+    
+    return STATUS_SUCCESS;
+}
+
+STATUS
+SyscallThreadGetInformation(
+    IN UM_HANDLE      ThreadHandle,
+    OUT DWORD* ChildrenCount,
+    OUT DWORD* TimeSlices,
+    OUT DWORD* ThreadId,
+    OUT UM_HANDLE* ParentHandle
+)
+{
+    PTHREAD pThread = (PTHREAD)ThreadHandle;
+
+    *ChildrenCount = _ListLength(pThread->ChildrenList);
+    *TimeSlices = (DWORD)pThread->ThreadTimeSlices;
+    *ThreadId = (DWORD)pThread->Id;
+    *ParentHandle = (UM_HANDLE)pThread->ParentThread;
+
+    return STATUS_SUCCESS;
+}
+
+STATUS
+SyscallThreadGetChildren(
+    IN UM_HANDLE      ThreadHandle,
+    OUT UM_HANDLE* ChildrenHandles
+)
+{
+    PTHREAD pThread = (PTHREAD)ThreadHandle;
+
+    ChildrenHandles = ExAllocatePoolWithTag(PoolAllocateZeroMemory, sizeof(UM_HANDLE) * _ListLength(pThread->ChildrenList), HEAP_THREAD_TAG, 0);
+
+    LIST_ITERATOR it;
+    ListIteratorInit(&pThread->ChildrenList, &it);
+
+    PLIST_ENTRY pEntry;
+    while ((pEntry = ListIteratorNext(&it)) != NULL)
+    {
+        PTHREAD child = CONTAINING_RECORD(pEntry, THREAD, ChildListElement);
+        UM_HANDLE ch_handle = (UM_HANDLE)child;
+        UNREFERENCED_PARAMETER(ch_handle);
+        //InsertTailList(ChildrenHandles, ch_handle);
+    }
+
+    return STATUS_SUCCESS;
 }

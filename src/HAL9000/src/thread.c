@@ -1305,3 +1305,23 @@ _ThreadReferenceByTid(
 	LockRelease(&m_threadSystemData.AllThreadsLock, oldState);
 	return NULL;
 }
+
+DWORD
+_ListLength(
+    LIST_ENTRY  List
+)
+{
+    DWORD length = 0;
+
+    PLIST_ENTRY pEntry;
+    LIST_ITERATOR it;
+
+    ListIteratorInit(&List, &it);
+
+    while ((pEntry = ListIteratorNext(&it)) != NULL)
+    {
+        length++;
+    }
+
+    return length;
+}
