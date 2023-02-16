@@ -297,6 +297,5 @@ ThreadSetPriority(
 
 PTHREAD
 _ThreadReferenceByTid(
-    TID
-    ThreadId
+    TID     ThreadId
 );

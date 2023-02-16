@@ -4,6 +4,7 @@
 #include "iomu.h"
 #include "pic.h"
 #include "thread_internal.h"
+#include "process_internal.h"
 #include "mmu.h"
 #include "cpumu.h"
 #include "dmp_cpu.h"
@@ -93,6 +94,12 @@ _IsrExceptionHandler(
 
     errorCode = 0;
     exceptionHandled = FALSE;
+
+    if (!GdtIsSegmentPrivileged((WORD)StackPointer->Registers.CS))
+    {
+        LOG("Exception 0x%X(exception name: %s) at address 0x%X will cause the termination of process %s!\n", InterruptIndex, EXCEPTION_NAME[InterruptIndex], ProcessorState->RegisterArea, GetCurrentProcess()->ProcessName);
+        ProcessTerminate(NULL);
+    }
 
     LOG_TRACE_EXCEPTION("Exception: 0x%x [%s]\n", InterruptIndex, EXCEPTION_NAME[InterruptIndex]);
 

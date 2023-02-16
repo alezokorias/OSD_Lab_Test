@@ -7,6 +7,7 @@
 #include "mmu.h"
 #include "process_internal.h"
 #include "dmp_cpu.h"
+#include "thread_internal.h"
 
 extern void SyscallEntry();
 
@@ -68,6 +69,15 @@ SyscallHandler(
             status = SyscallValidateInterface((SYSCALL_IF_VERSION)*pSyscallParameters);
             break;
         // STUDENT TODO: implement the rest of the syscalls
+        case SyscallIdProcessExit:
+            status = SyscallProcessExit((STATUS)*pSyscallParameters);
+            break;
+        case SyscallIdThreadExit:
+            status = SyscallThreadExit((STATUS)*pSyscallParameters);
+            break;
+        case SyscallIdFileWrite:
+            status = SyscallFileWrite((UM_HANDLE)pSyscallParameters[0], (PVOID)pSyscallParameters[1], (QWORD)pSyscallParameters[2], (QWORD*)pSyscallParameters[3]);
+            break;
         default:
             LOG_ERROR("Unimplemented syscall called from User-space!\n");
             status = STATUS_UNSUPPORTED;
@@ -170,6 +180,29 @@ SyscallValidateInterface(
 }
 
 STATUS
+SyscallProcessExit(
+    IN      STATUS                  ExitStatus
+)
+{
+    PPROCESS  currentProcess = GetCurrentProcess();
+
+    currentProcess->TerminationStatus = ExitStatus;
+    ProcessTerminate(currentProcess);
+
+    return STATUS_SUCCESS;
+}
+
+STATUS
+SyscallThreadExit(
+    IN  STATUS                      ExitStatus
+)
+{
+    ThreadExit(ExitStatus);
+    
+    return STATUS_SUCCESS;
+}
+
+STATUS
 SyscallFileWrite(
     IN  UM_HANDLE                   FileHandle,
     IN_READS_BYTES(BytesToWrite)
@@ -178,15 +211,21 @@ SyscallFileWrite(
     OUT QWORD* BytesWritten
 )
 {
-    BytesWritten = ExAllocatePoolWithTag(PoolAllocateZeroMemory, (DWORD)BytesToWrite, HEAP_THREAD_TAG, 0);
-    if (MmuIsBufferValid(Buffer, BytesToWrite, PAGE_RIGHTS_WRITE, NULL) != STATUS_SUCCESS) {
-        return STATUS_MEMORY_CANNOT_BE_MAPPED;
-    }
+    STATUS status;
+    status = MmuIsBufferValid(Buffer, BytesToWrite, PAGE_RIGHTS_WRITE, GetCurrentProcess());
 
-    if (FileHandle != UM_FILE_HANDLE_STDOUT)
+    if (!SUCCEEDED(status))
     {
-        return STATUS_UNSUCCESSFUL;
+        LOG_FUNC_ERROR("MmuIsBufferValid", status);
+        return status;
     }
 
-    return STATUS_SUCCESS;
+    if (FileHandle == UM_FILE_HANDLE_STDOUT)
+    {
+        LOG("[% s]:[%s]\n", ProcessGetName(NULL), Buffer);
+
+        *BytesWritten = BytesToWrite;
+    }
+
+    return status;
 }
