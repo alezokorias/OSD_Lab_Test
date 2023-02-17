@@ -11,5 +11,11 @@ __main(
     UNREFERENCED_PARAMETER(argc);
     UNREFERENCED_PARAMETER(argv);
 
+    QWORD* orphan_threads;
+
+    SyscallGetNumberOfOrphanThreads(&orphan_threads);
+
+    LOG("Number of Orphan Threads: 0x%x\n", orphan_threads);
+
     return STATUS_SUCCESS;
 }

@@ -762,3 +762,44 @@ _ProcessDestroy(
 
     ExFreePoolWithTag(Process, HEAP_PROCESS_TAG);
 }
+
+QWORD
+ProcessGetNumberOfThreads(
+    IN_OPT      PPROCESS    Process
+)
+{
+    if (Process != NULL)
+    {
+        return Process->NumberOfThreads;
+    }
+    else
+    {
+        return GetCurrentProcess()->NumberOfThreads;
+    }
+}
+
+
+// no time left - a draft
+
+//PPROCESS
+//GetBusiestProcess(
+//    void
+//)
+//{
+//    QWORD bussiest;
+//    LIST_ITERATOR it;
+//    PLIST_ENTRY pEntry;
+//
+//    INTR_STATE old_state;
+//
+//    LockAcquire(&m_processData.ProcessListLock, &old_state);
+//
+//    ListIteratorInit(&m_processData.ProcessList, &it);
+//
+//    while ((pEntry = ListIteratorNext(&it)) != NULL)
+//    {
+//        ProcessGetNumberOfThreads(pEntry);
+//    }
+//
+//    LockRelease(&m_processData.ProcessListLock, old_state);
+//}

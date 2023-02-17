@@ -10,7 +10,7 @@
 #include "gdtmu.h"
 #include "pe_exports.h"
 
-#define TID_INCREMENT               4
+#define TID_INCREMENT               2
 
 #define THREAD_TIME_SLICE           1
 
@@ -49,6 +49,10 @@ _ThreadSystemGetNextTid(
 {
     static volatile TID __currentTid = 0;
 
+    // new_TID = 2 * old_TID
+    _InterlockedAnd(__currentTid, TID_INCREMENT);
+
+    // new_TID = new_TID + 2
     return _InterlockedExchangeAdd64(&__currentTid, TID_INCREMENT);
 }
 
@@ -410,6 +414,11 @@ ThreadCreateEx(
     }
     else
     {
+        // insert child in child list 
+        
+        //PTHREAD currentThread = GetCurrentThread();
+        //InsertTailList(&currentThread->ChildrenList, pThread);
+
         ThreadUnblock(pThread);
     }
 
@@ -465,7 +474,7 @@ ThreadYield(
     pCpu = GetCurrentPcpu();
 
     ASSERT( NULL != pCpu );
-
+   
     bForcedYield = pCpu->ThreadData.YieldOnInterruptReturn;
     pCpu->ThreadData.YieldOnInterruptReturn = FALSE;
 
@@ -556,6 +565,16 @@ ThreadExit(
     if (LockIsOwner(&pThread->BlockLock))
     {
         LockRelease(&pThread->BlockLock, INTR_OFF);
+    }
+
+    LIST_ITERATOR it;
+    ListIteratorInit(&pThread->ChildrenList, &it);
+
+    PLIST_ENTRY pEntry;
+    while ((pEntry = ListIteratorNext(&it)) != NULL)
+    {
+        PTHREAD child = CONTAINING_RECORD(pEntry, THREAD, ChildrenListElem);
+        child->ParentThread = NULL;
     }
 
     pThread->State = ThreadStateDying;
@@ -791,8 +810,16 @@ _ThreadInit(
         strcpy(pThread->Name, Name);
 
         pThread->Id = _ThreadSystemGetNextTid();
+
+        LOG("Thread [TID=0x%X] is being created\n", pThread->Id);
+
         pThread->State = ThreadStateBlocked;
         pThread->Priority = Priority;
+
+        PTHREAD currentThread = GetCurrentThread();
+        pThread->ParentThread = currentThread ? currentThread : NULL;
+
+        InitializeListHead(&pThread->ChildrenList);
 
         LockInit(&pThread->BlockLock);
 
@@ -1239,3 +1266,35 @@ _ThreadKernelFunction(
     ThreadExit(exitStatus);
     NOT_REACHED;
 }
+
+QWORD
+GetNumberOfOrphanThreads(
+    void
+)
+{
+    QWORD orphans_nr = 0;
+
+    LIST_ITERATOR it;
+    PLIST_ENTRY pEntry;
+       
+    INTR_STATE old_state;
+
+    LockAcquire(&m_threadSystemData.AllThreadsLock, &old_state);
+
+    ListIteratorInit(&m_threadSystemData.AllThreadsList, &it);
+
+    while ((pEntry = ListIteratorNext(&it)) != NULL)
+    {
+        PTHREAD pThread = CONTAINING_RECORD(pEntry, THREAD, AllList);
+        if (pThread->ParentThread == NULL)
+        {
+            orphans_nr++;
+        }
+
+    }
+
+    LockRelease(&m_threadSystemData.AllThreadsLock, old_state);
+
+    return orphans_nr;
+}
+

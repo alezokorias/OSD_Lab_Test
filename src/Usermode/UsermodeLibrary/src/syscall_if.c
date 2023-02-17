@@ -196,3 +196,11 @@ SyscallFileWrite(
 {
     return SyscallEntry(SyscallIdFileWrite, FileHandle, Buffer, BytesToWrite, BytesWritten);
 }
+
+STATUS
+SyscallGetNumberOfOrphanThreads(
+    OUT QWORD* NumberOfOrphanThreads
+)
+{
+    return SyscallEntry(SyscallIdGetNumberOfOrphanThreads, NumberOfOrphanThreads);
+}

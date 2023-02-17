@@ -163,3 +163,13 @@ ProcessActivatePagingTables(
     IN      PPROCESS            Process,
     IN      BOOLEAN             InvalidateAddressSpace
     );
+
+QWORD
+ProcessGetNumberOfThreads(
+    IN_OPT      PPROCESS    Process
+);
+
+PPROCESS
+GetBusiestProcess(
+    void
+);

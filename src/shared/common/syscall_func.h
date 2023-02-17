@@ -306,3 +306,8 @@ SyscallFileWrite(
     IN  QWORD                       BytesToWrite,
     OUT QWORD*                      BytesWritten
     );
+
+STATUS
+SyscallGetNumberOfOrphanThreads(
+    OUT QWORD* NumberOfOrphanThreads
+);

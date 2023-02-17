@@ -7,6 +7,7 @@
 #include "mmu.h"
 #include "process_internal.h"
 #include "dmp_cpu.h"
+#include "thread_internal.h"
 
 extern void SyscallEntry();
 
@@ -66,6 +67,9 @@ SyscallHandler(
         {
         case SyscallIdIdentifyVersion:
             status = SyscallValidateInterface((SYSCALL_IF_VERSION)*pSyscallParameters);
+            break;
+        case SyscallIdGetNumberOfOrphanThreads:
+            status = SyscallGetNumberOfOrphanThreads((QWORD*)*pSyscallParameters);
             break;
         // STUDENT TODO: implement the rest of the syscalls
         default:
@@ -170,3 +174,13 @@ SyscallValidateInterface(
 }
 
 // STUDENT TODO: implement the rest of the syscalls
+
+STATUS
+SyscallGetNumberOfOrphanThreads(
+    OUT QWORD* NumberOfOrphanThreads
+)
+{
+    *NumberOfOrphanThreads = GetNumberOfOrphanThreads();
+
+    return STATUS_SUCCESS;
+}
