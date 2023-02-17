@@ -50,7 +50,7 @@ _ThreadSystemGetNextTid(
     static volatile TID __currentTid = 0;
 
     // new_TID = 2 * old_TID
-    _InterlockedAnd(__currentTid, TID_INCREMENT);
+    _InterlockedAnd(&__currentTid, TID_INCREMENT);
 
     // new_TID = new_TID + 2
     return _InterlockedExchangeAdd64(&__currentTid, TID_INCREMENT);
